@@ -10,12 +10,14 @@ import os
 import math  # 添加math模块导入
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QLabel, QPushButton, 
                             QVBoxLayout, QHBoxLayout, QWidget, QTextEdit, 
-                            QCheckBox, QFrame)
+                            QCheckBox, QFrame, QLineEdit)  # 添加QLineEdit导入
 from PyQt6.QtCore import QTimer, Qt, QPoint
 from PyQt6.QtGui import QIcon, QPixmap, QFont, QColor, QPainter, QPen, QCursor
 
 # 配置部分
-MUSIC_PLAYER_PROCESSES = ['lx-music-desktop.exe']  # 需要排除的音乐播放器进程名
+# 修改为可配置的音乐播放器设置
+DEFAULT_MUSIC_PLAYER = 'lx-music-desktop.exe'  # 默认音乐播放器进程名
+DEFAULT_HOTKEY = ['ctrl', 'alt', 'p']  # 默认播放/暂停快捷键
 PEAK_THRESHOLD = 0.01  # 声音触发阈值（0.0-1.0）
 VERY_LOW_THRESHOLD = 1e-8  # 极低音量阈值，用于检测暂停状态
 
@@ -35,17 +37,32 @@ class TitleBarButton(QPushButton):
                 background-color: {hover_color};
             }}
         """)
-        
+    
     def paintEvent(self, event):
         super().paintEvent(event)
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         
+        # 获取父窗口的主题模式
+        is_light_mode = False
+        parent = self.parent()
+        while parent:
+            if hasattr(parent, "is_light_mode"):
+                is_light_mode = parent.is_light_mode
+                break
+            parent = parent.parent()
+        
         # 设置画笔颜色
         if self.underMouse():
+            # 悬停时使用白色
             pen_color = QColor("#FFFFFF")
         else:
-            pen_color = QColor(self.icon_color)
+            if is_light_mode:
+                # 光模式下使用深色图标
+                pen_color = QColor("#333333")
+            else:
+                # 暗模式下使用浅色图标
+                pen_color = QColor(self.icon_color)
         
         pen = QPen(pen_color)
         pen.setWidth(1)
@@ -66,10 +83,6 @@ class TitleBarButton(QPushButton):
             painter.drawLine(center_x - 8, center_y, center_x + 8, center_y)
         elif self.objectName() == "themeButton":
             # 绘制主题切换图标（太阳/月亮）
-            is_light_mode = False
-            if self.parent():
-                is_light_mode = getattr(self.parent(), "is_light_mode", False)
-            
             if is_light_mode:
                 # 绘制月亮图标
                 painter.drawEllipse(center_x - 7, center_y - 7, 14, 14)
@@ -103,7 +116,22 @@ class ModernWindow(QMainWindow):
         # 修改图标加载方式
         try:
             # 尝试直接从当前文件目录加载图标
+            # 在加载图标的地方添加以下代码
+            def resource_path(relative_path):
+                """获取资源的绝对路径，兼容开发环境和PyInstaller打包后的环境"""
+                try:
+                    # PyInstaller创建临时文件夹，将路径存储在_MEIPASS中
+                    base_path = sys._MEIPASS
+                except Exception:
+                    base_path = os.path.abspath(".")
+                
+                return os.path.join(base_path, relative_path)
+            
+            # 然后将所有加载图标的代码从：
             icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "icon.png")
+            
+            # 修改为：
+            icon_path = resource_path("icon.png")
             if os.path.exists(icon_path):
                 app_icon = QIcon(icon_path)
                 self.setWindowIcon(app_icon)
@@ -149,7 +177,7 @@ class ModernWindow(QMainWindow):
         # 创建应用程序字体
         app_font = QFont()
         app_font.setFamily(font_family.split(',')[0].strip())  # 使用第一个字体
-        app_font.setPixelSize(13)  # 使用像素大小而不是点大小
+        app_font.setPixelSize(15)  # 将字体大小从13增加到15
         app_font.setHintingPreference(QFont.HintingPreference.PreferFullHinting)  # 增强字体提示
         QApplication.setFont(app_font)
         
@@ -158,7 +186,7 @@ class ModernWindow(QMainWindow):
             self.setStyleSheet(f"""
                 * {{
                     font-family: {font_family};
-                    font-size: 13px;
+                    font-size: 15px;  /* 将字体大小从13px增加到15px */
                     letter-spacing: 0.3px;  /* 增加字母间距 */
                 }}
                 #windowFrame {{
@@ -172,7 +200,7 @@ class ModernWindow(QMainWindow):
                 }}
                 #titleLabel {{
                     color: #333333;
-                    font-size: 14px;
+                    font-size: 16px;  /* 将标题字体从14px增加到16px */
                     font-weight: bold;
                 }}
                 #contentFrame {{
@@ -194,8 +222,55 @@ class ModernWindow(QMainWindow):
                     border: 1px solid #CCCCCC;
                     border-radius: 4px;
                     font-family: "Consolas", "Microsoft YaHei UI", monospace;
-                    font-size: 12px;
+                    font-size: 14px;  /* 将字体大小从12px增加到14px */
                     line-height: 1.5;
+                }}
+                QScrollBar:vertical {{
+                    background: #F0F0F0;
+                    width: 12px;
+                    margin: 0px;
+                }}
+                QScrollBar::handle:vertical {{
+                    background: #CCCCCC;
+                    min-height: 20px;
+                    border-radius: 6px;
+                }}
+                QScrollBar::handle:vertical:hover {{
+                    background: #AAAAAA;
+                }}
+                QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
+                    height: 0px;
+                }}
+                QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {{
+                    background: none;
+                }}
+                QScrollBar:horizontal {{
+                    background: #F0F0F0;
+                    height: 12px;
+                    margin: 0px;
+                }}
+                QScrollBar::handle:horizontal {{
+                    background: #CCCCCC;
+                    min-width: 20px;
+                    border-radius: 6px;
+                }}
+                QScrollBar::handle:horizontal:hover {{
+                    background: #AAAAAA;
+                }}
+                QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {{
+                    width: 0px;
+                }}
+                QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {{
+                    background: none;
+                }}
+                QLineEdit {{
+                    background-color: #FFFFFF;
+                    color: #333333;
+                    border: 1px solid #CCCCCC;
+                    border-radius: 4px;
+                    padding: 4px 8px;
+                    selection-background-color: #0078D7;
+                    selection-color: white;
                 }}
                 QPushButton {{
                     background-color: #0078D7;
@@ -237,7 +312,7 @@ class ModernWindow(QMainWindow):
             self.setStyleSheet(f"""
                 * {{
                     font-family: {font_family};
-                    font-size: 13px;
+                    font-size: 15px;  /* 将字体大小从13px增加到15px */
                     letter-spacing: 0.3px;  /* 增加字母间距 */
                 }}
                 #windowFrame {{
@@ -251,7 +326,7 @@ class ModernWindow(QMainWindow):
                 }}
                 #titleLabel {{
                     color: #FFFFFF;
-                    font-size: 14px;
+                    font-size: 16px;  /* 将标题字体从14px增加到16px */
                     font-weight: bold;
                 }}
                 #contentFrame {{
@@ -272,6 +347,56 @@ class ModernWindow(QMainWindow):
                     color: #FFFFFF;
                     border: 1px solid #3F3F46;
                     border-radius: 4px;
+                    font-family: "Consolas", "Microsoft YaHei UI", monospace;
+                    font-size: 14px;  /* 将字体大小从12px增加到14px */
+                    line-height: 1.5;
+                }}
+                QScrollBar:vertical {{
+                    background: #2A2A2A;
+                    width: 12px;
+                    margin: 0px;
+                }}
+                QScrollBar::handle:vertical {{
+                    background: #555555;
+                    min-height: 20px;
+                    border-radius: 6px;
+                }}
+                QScrollBar::handle:vertical:hover {{
+                    background: #666666;
+                }}
+                QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
+                    height: 0px;
+                }}
+                QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {{
+                    background: none;
+                }}
+                QScrollBar:horizontal {{
+                    background: #2A2A2A;
+                    height: 12px;
+                    margin: 0px;
+                }}
+                QScrollBar::handle:horizontal {{
+                    background: #555555;
+                    min-width: 20px;
+                    border-radius: 6px;
+                }}
+                QScrollBar::handle:horizontal:hover {{
+                    background: #666666;
+                }}
+                QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {{
+                    width: 0px;
+                }}
+                QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {{
+                    background: none;
+                }}
+                QLineEdit {{
+                    background-color: #252526;
+                    color: #FFFFFF;
+                    border: 1px solid #3F3F46;
+                    border-radius: 4px;
+                    padding: 4px 8px;
+                    selection-background-color: #0078D7;
+                    selection-color: white;
                 }}
                 QPushButton {{
                     background-color: #0078D7;
@@ -313,6 +438,14 @@ class ModernWindow(QMainWindow):
         """切换主题模式"""
         self.is_light_mode = not self.is_light_mode
         self.apply_theme()
+        
+        # 强制更新标题栏按钮
+        if hasattr(self, 'theme_button'):
+            self.theme_button.update()
+        if hasattr(self, 'minimize_button'):
+            self.minimize_button.update()
+        if hasattr(self, 'close_button'):
+            self.close_button.update()
     
     def create_title_bar(self):
         # 创建标题栏
@@ -343,14 +476,14 @@ class ModernWindow(QMainWindow):
         title_layout.addWidget(self.title_label)
         title_layout.addStretch()
         
-        # 主题切换按钮
+        # 主题切换按钮 - 使用相同的hover_color
         self.theme_button = TitleBarButton(self, hover_color="#0078D7")
         self.theme_button.setObjectName("themeButton")
         self.theme_button.setToolTip("切换主题")
         self.theme_button.clicked.connect(self.toggle_theme)
         
         # 最小化按钮
-        self.minimize_button = TitleBarButton(self)
+        self.minimize_button = TitleBarButton(self, hover_color="#0078D7")
         self.minimize_button.setObjectName("minimizeButton")
         self.minimize_button.setToolTip("最小化")
         self.minimize_button.clicked.connect(self.showMinimized)
@@ -389,12 +522,15 @@ class ModernWindow(QMainWindow):
         else:
             self.showMaximized()
 
+# 将AudioMonitorApp类移到全局作用域，并删除重复的main函数定义
+
+# 在ModernWindow类之后添加AudioMonitorApp类
 class AudioMonitorApp(ModernWindow):
     def __init__(self):
         super().__init__()
         # 修改软件标题为"音乐一直放！"
         self.setWindowTitle("音乐一直放！")
-        self.setGeometry(100, 100, 600, 400)
+        self.setGeometry(100, 100, 600, 450)  # 增加高度以容纳新控件
         
         # 状态变量
         self.last_other_playing = False
@@ -405,14 +541,16 @@ class AudioMonitorApp(ModernWindow):
         self.running = False
         self.no_volume_count = 0
         
+        # 音乐播放器设置
+        self.music_player = DEFAULT_MUSIC_PLAYER
+        self.music_hotkey = DEFAULT_HOTKEY
+        
         # 创建定时器
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.check_audio_status)
         
         # 创建界面
         self.init_ui()
-        
-    # 在AudioMonitorApp类的init_ui方法中添加GitHub链接按钮
     
     def init_ui(self):
         layout = QVBoxLayout()
@@ -433,14 +571,41 @@ class AudioMonitorApp(ModernWindow):
         status_layout.addWidget(self.status_label)
         status_layout.addStretch()
         
-        # 添加GitHub链接
+        # 添加GitHub链接 - 增加按钮宽度
         github_button = QPushButton("GitHub")
-        github_button.setFixedWidth(80)
+        github_button.setFixedWidth(100)  # 从80增加到100
         github_button.setToolTip("访问GitHub仓库")
         github_button.clicked.connect(self.open_github)
         status_layout.addWidget(github_button)
         
         layout.addWidget(self.status_frame)
+        
+        # 添加音乐播放器设置区域
+        settings_frame = QFrame()
+        settings_frame.setObjectName("settingsFrame")
+        settings_layout = QVBoxLayout(settings_frame)
+        
+        # 音乐播放器选择
+        player_layout = QHBoxLayout()
+        player_label = QLabel("音乐播放器进程名:")
+        self.player_input = QLineEdit(self.music_player)
+        self.player_input.setToolTip("输入音乐播放器的进程名称，例如：lx-music-desktop.exe")
+        self.player_input.textChanged.connect(self.update_music_player)
+        player_layout.addWidget(player_label)
+        player_layout.addWidget(self.player_input)
+        settings_layout.addLayout(player_layout)
+        
+        # 快捷键设置
+        hotkey_layout = QHBoxLayout()
+        hotkey_label = QLabel("播放/暂停快捷键:")
+        self.hotkey_input = QLineEdit('+'.join(self.music_hotkey))
+        self.hotkey_input.setToolTip("输入控制音乐播放/暂停的快捷键，例如：ctrl+alt+p")
+        self.hotkey_input.textChanged.connect(self.update_hotkey)
+        hotkey_layout.addWidget(hotkey_label)
+        hotkey_layout.addWidget(self.hotkey_input)
+        settings_layout.addLayout(hotkey_layout)
+        
+        layout.addWidget(settings_frame)
         
         # 日志显示
         log_label = QLabel("运行日志")
@@ -472,56 +637,73 @@ class AudioMonitorApp(ModernWindow):
         
         # 添加日志
         self.log("音频监控系统已启动")
+        self.log(f"当前音乐播放器: {self.music_player}")
+        self.log(f"当前快捷键: {'+'.join(self.music_hotkey)}")
         
         # 如果选中了自动启动，则启动监控
         if self.auto_start_checkbox.isChecked():
             self.toggle_monitoring()
     
+    def update_music_player(self, text):
+        """更新音乐播放器设置"""
+        self.music_player = text.strip()
+        self.log(f"音乐播放器已更新为: {self.music_player}")
+    
+    def update_hotkey(self, text):
+        """更新快捷键设置"""
+        keys = [k.strip().lower() for k in text.split('+') if k.strip()]
+        if keys:
+            self.music_hotkey = keys
+            self.log(f"快捷键已更新为: {'+'.join(self.music_hotkey)}")
+    
     def log(self, message):
-        """添加日志到日志窗口"""
-        self.log_text.append(f"[{time.strftime('%H:%M:%S')}] {message}")
+        """添加日志消息"""
+        timestamp = time.strftime("%H:%M:%S", time.localtime())
+        self.log_text.append(f"[{timestamp}] {message}")
         # 滚动到底部
-        self.log_text.verticalScrollBar().setValue(self.log_text.verticalScrollBar().maximum())
+        self.log_text.verticalScrollBar().setValue(
+            self.log_text.verticalScrollBar().maximum()
+        )
     
     def toggle_monitoring(self):
         """切换监控状态"""
-        if not self.running:
-            self.running = True
-            self.start_button.setText("停止监控")
-            self.status_label.setText("状态: 正在监控")
-            self.status_icon.setStyleSheet("color: #4CAF50; font-size: 16px;")  # 绿色
-            self.log("开始音频监控")
-            self.timer.start(2000)  # 每2秒检查一次
-        else:
+        if self.running:
+            self.timer.stop()
             self.running = False
             self.start_button.setText("开始监控")
-            self.status_label.setText("状态: 已停止")
-            self.status_icon.setStyleSheet("color: #888888; font-size: 16px;")  # 灰色
-            self.log("停止音频监控")
-            self.timer.stop()
+            self.status_label.setText("状态: 未运行")
+            self.status_icon.setStyleSheet("color: #888888; font-size: 16px;")
+            self.log("监控已停止")
+        else:
+            self.timer.start(3000)  # 每3秒检查一次
+            self.running = True
+            self.start_button.setText("停止监控")
+            self.status_label.setText("状态: 运行中")
+            self.status_icon.setStyleSheet("color: #4CAF50; font-size: 16px;")
+            self.log("监控已启动")
     
     def 检测LX_Music是否在播放音频(self):
-        """检测LX_Music是否在播放音频，通过窗口标题和音量判断"""
+        """检测音乐播放器是否在播放音频，通过窗口标题和音量判断"""
         try:
-            # 首先检查LX Music进程是否存在
-            lx_music_running = False
+            # 首先检查音乐播放器进程是否存在
+            music_player_running = False
             for proc in psutil.process_iter(['pid', 'name']):
-                if proc.info['name'].lower() == 'lx-music-desktop.exe':
-                    lx_music_running = True
+                if proc.info['name'].lower() == self.music_player.lower():
+                    music_player_running = True
                     break
             
-            if not lx_music_running:
-                self.log("LX Music进程未运行")
+            if not music_player_running:
+                self.log(f"音乐播放器进程 {self.music_player} 未运行")
                 return False
             
-            # 查找LX Music窗口
-            lx_music_title = ""
+            # 查找音乐播放器窗口
+            music_player_title = ""
             def callback(hwnd, extra):
                 if win32gui.IsWindowVisible(hwnd):
                     _, pid = win32process.GetWindowThreadProcessId(hwnd)
                     try:
                         process = psutil.Process(pid)
-                        if process.name().lower() == 'lx-music-desktop.exe':
+                        if process.name().lower() == self.music_player.lower():
                             title = win32gui.GetWindowText(hwnd)
                             if title:
                                 extra[0] = title
@@ -531,18 +713,18 @@ class AudioMonitorApp(ModernWindow):
             
             window_title = [""]  # 使用列表作为可变对象传递结果
             win32gui.EnumWindows(callback, window_title)
-            lx_music_title = window_title[0]
+            music_player_title = window_title[0]
             
-            self.log(f"LX Music窗口标题: '{lx_music_title}'")
+            self.log(f"音乐播放器窗口标题: '{music_player_title}'")
             
             # 使用音量检测作为主要判断方法
             peak_value = 0.0
             sessions = AudioUtilities.GetAllSessions()
             for session in sessions:
-                if session.Process and session.Process.name().lower() == 'lx-music-desktop.exe':
+                if session.Process and session.Process.name().lower() == self.music_player.lower():
                     meter = session._ctl.QueryInterface(IAudioMeterInformation)
                     peak_value = meter.GetPeakValue()
-                    self.log(f"LX Music音量峰值: {peak_value}")
+                    self.log(f"音乐播放器音量峰值: {peak_value}")
                     break
             
             # 根据音量判断播放状态
@@ -551,21 +733,21 @@ class AudioMonitorApp(ModernWindow):
                 return True
             # 如果音量极低（接近0但不是0），则认为是暂停状态
             elif peak_value > 0 and peak_value < VERY_LOW_THRESHOLD:
-                self.log("LX Music已暂停（极低音量）")
+                self.log("音乐播放器已暂停（极低音量）")
                 return False
             
             # 如果音量检测不确定，则使用窗口标题辅助判断
-            if "- 暂停中" in lx_music_title or "- paused" in lx_music_title.lower():
+            if "- 暂停中" in music_player_title or "- paused" in music_player_title.lower():
                 return False
             
-            # 如果窗口标题包含歌曲名（不只是"LX Music"），且没有明确的暂停标识，则可能在播放
-            is_playing_by_title = bool(lx_music_title and not lx_music_title.endswith("LX Music"))
+            # 如果窗口标题包含歌曲名，且没有明确的暂停标识，则可能在播放
+            is_playing_by_title = bool(music_player_title and not music_player_title.endswith(self.music_player.replace(".exe", "")))
             
             # 如果标题判断为播放中，但音量为0，则需要进一步确认
             if is_playing_by_title and peak_value == 0:
                 self.no_volume_count += 1
                 if self.no_volume_count > 2:  # 连续3次检测
-                    self.log("LX Music可能已暂停（无音量）")
+                    self.log("音乐播放器可能已暂停（无音量）")
                     return False
             else:
                 self.no_volume_count = 0
@@ -573,14 +755,14 @@ class AudioMonitorApp(ModernWindow):
             return is_playing_by_title
             
         except Exception as e:
-            self.log(f"检测LX Music状态时出错: {e}")
+            self.log(f"检测音乐播放器状态时出错: {e}")
             return False
     
     def 控制LX_Music(self, action):
-        """控制LX_Music的播放状态"""
+        """控制音乐播放器的播放状态"""
         if action == 'play' or action == 'pause':
-            self.log(f"发送快捷键 Ctrl+Alt+P 到LX Music ({action})")
-            pyautogui.hotkey('ctrl', 'alt', 'p')
+            self.log(f"发送快捷键 {'+'.join(self.music_hotkey)} 到音乐播放器 ({action})")
+            pyautogui.hotkey(*self.music_hotkey)
             # 等待一小段时间让操作生效
             time.sleep(1)
     
@@ -591,7 +773,7 @@ class AudioMonitorApp(ModernWindow):
             if not session.Process:
                 continue
             process_name = session.Process.name().lower()
-            if process_name in MUSIC_PLAYER_PROCESSES:
+            if process_name == self.music_player.lower():
                 continue
             meter = session._ctl.QueryInterface(IAudioMeterInformation)
             if meter.GetPeakValue() > PEAK_THRESHOLD:
@@ -605,7 +787,7 @@ class AudioMonitorApp(ModernWindow):
             other_playing = self.检测其他程序是否在播放音频()
             lx_playing = self.检测LX_Music是否在播放音频()
             
-            self.log(f"调试信息 - 其他程序播放状态: {other_playing}, LX Music播放状态: {lx_playing}")
+            self.log(f"调试信息 - 其他程序播放状态: {other_playing}, 音乐播放器播放状态: {lx_playing}")
             
             # 添加操作冷却时间，避免频繁切换
             cooldown_passed = (current_time - self.last_action_time) > 5  # 5秒冷却时间
@@ -613,7 +795,7 @@ class AudioMonitorApp(ModernWindow):
             # 情况1: 其他程序正在播放，确保LX Music暂停
             if other_playing:
                 if lx_playing and cooldown_passed:
-                    self.log("检测到其他程序正在播放，暂停LX Music")
+                    self.log("检测到其他程序正在播放，暂停音乐播放器")
                     self.控制LX_Music('pause')
                     self.last_action = 'pause'
                     self.last_action_time = current_time
@@ -625,17 +807,17 @@ class AudioMonitorApp(ModernWindow):
                     # 添加防止循环触发的逻辑
                     self.consecutive_attempts += 1
                     if self.consecutive_attempts <= 3:  # 最多尝试3次
-                        self.log(f"没有检测到任何音频播放，启动LX Music (尝试 {self.consecutive_attempts}/3)")
+                        self.log(f"没有检测到任何音频播放，启动音乐播放器 (尝试 {self.consecutive_attempts}/3)")
                         self.控制LX_Music('play')
                         self.last_action = 'play'
                         self.last_action_time = current_time
-                        time.sleep(2)  # 给LX Music一些启动时间
+                        time.sleep(2)  # 给音乐播放器一些启动时间
                     else:
-                        self.log("多次尝试启动LX Music未成功，暂停尝试")
+                        self.log("多次尝试启动音乐播放器未成功，暂停尝试")
                         time.sleep(15)  # 等待更长时间再尝试
                         self.consecutive_attempts = 0
                 else:
-                    self.consecutive_attempts = 0  # LX Music已经在播放，重置计数
+                    self.consecutive_attempts = 0  # 音乐播放器已经在播放，重置计数
             
             # 更新上一次的状态
             self.last_other_playing = other_playing
@@ -643,7 +825,15 @@ class AudioMonitorApp(ModernWindow):
             
         except Exception as e:
             self.log(f"发生错误: {e}")
+    
+    def open_github(self):
+        """打开GitHub仓库页面"""
+        import webbrowser
+        webbrowser.open("https://github.com/wuqie-xuanzhao/MusicAlwaysPlay")
+        self.log("正在打开GitHub仓库页面...")
 
+# 删除类内部的main函数定义，将其移到类外部
+# 在AudioMonitorApp类定义之后，添加以下代码
 def main():
     # 使用Windows API直接设置DPI感知模式
     try:
@@ -662,16 +852,7 @@ def main():
     
     app = QApplication(sys.argv)
     
-    # 在PyQt6中正确设置高DPI属性
-    try:
-        # 使用正确的枚举值
-        app.setAttribute(Qt.ApplicationAttribute.UseHighDpiPixmaps)
-        # 设置DPI缩放策略
-        if hasattr(Qt, 'HighDpiScaleFactorRoundingPolicy'):
-            app.setHighDpiScaleFactorRoundingPolicy(
-                Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
-    except Exception as e:
-        print(f"设置高DPI属性失败: {e}")
+    # 删除了设置高DPI属性的代码，避免错误
     
     # 设置应用程序名称
     app.setApplicationName("音乐一直放！")
@@ -681,10 +862,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-# 添加打开GitHub的方法
-def open_github(self):
-    """打开GitHub仓库页面"""
-    import webbrowser
-    webbrowser.open("https://github.com/你的用户名/MusicAlwaysPlay")
-    self.log("正在打开GitHub仓库页面...")
