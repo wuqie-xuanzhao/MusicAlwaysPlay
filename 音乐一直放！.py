@@ -412,12 +412,14 @@ class AudioMonitorApp(ModernWindow):
         # 创建界面
         self.init_ui()
         
+    # 在AudioMonitorApp类的init_ui方法中添加GitHub链接按钮
+    
     def init_ui(self):
         layout = QVBoxLayout()
         
         # 状态显示
         self.status_frame = QFrame()
-        self.status_frame.setObjectName("statusFrame")  # 添加ID以便于样式设置
+        self.status_frame.setObjectName("statusFrame")
         status_layout = QHBoxLayout(self.status_frame)
         
         status_icon = QLabel("●")
@@ -430,6 +432,13 @@ class AudioMonitorApp(ModernWindow):
         status_layout.addWidget(status_icon)
         status_layout.addWidget(self.status_label)
         status_layout.addStretch()
+        
+        # 添加GitHub链接
+        github_button = QPushButton("GitHub")
+        github_button.setFixedWidth(80)
+        github_button.setToolTip("访问GitHub仓库")
+        github_button.clicked.connect(self.open_github)
+        status_layout.addWidget(github_button)
         
         layout.addWidget(self.status_frame)
         
@@ -672,3 +681,10 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+# 添加打开GitHub的方法
+def open_github(self):
+    """打开GitHub仓库页面"""
+    import webbrowser
+    webbrowser.open("https://github.com/你的用户名/MusicAlwaysPlay")
+    self.log("正在打开GitHub仓库页面...")
