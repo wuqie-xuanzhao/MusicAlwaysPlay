@@ -29,7 +29,3 @@
 
 ```bash
 pip install PyQt6 pycaw pyautogui psutil pywin32
-
-git remote add origin https://github.com/wuqie-xuanzhao/MusicAlwaysPlay.git
-git branch -M main
-git push -u origin main
